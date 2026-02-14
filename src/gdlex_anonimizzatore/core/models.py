@@ -19,6 +19,7 @@ class EntityType(str, Enum):
     CODICE_FISCALE = "CODICE_FISCALE"
     PARTITA_IVA = "PARTITA_IVA"
     SOCIETA = "SOCIETA"
+    PERSONA = "PERSONA"
     MANUALE = "MANUALE"
 
 
@@ -59,6 +60,7 @@ class Settings:
     )
     session_whitelist: set[str] = field(default_factory=set)
     societa_session_mapping: dict[str, str] = field(default_factory=dict)
+    persona_session_mapping: dict[str, str] = field(default_factory=dict)
     version: str = "0.1"
 
 

@@ -21,6 +21,12 @@ def generate_report(jobs: list[FileJob], settings: Settings, destination: Path) 
             lines.append(f"- {company_key} -> {placeholder}")
     else:
         lines.append("- Nessun mapping SOCIETA")
+    lines.append("Mapping PERSONA sessione:")
+    if settings.persona_session_mapping:
+        for person_key, placeholder in settings.persona_session_mapping.items():
+            lines.append(f"- {person_key} -> {placeholder}")
+    else:
+        lines.append("- Nessun mapping PERSONA")
     lines.append("")
     for job in jobs:
         lines.extend(

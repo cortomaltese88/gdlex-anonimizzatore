@@ -533,6 +533,7 @@ class MainWindow(QMainWindow):
         self.jobs.clear()
         self.settings.session_whitelist.clear()
         self.settings.societa_session_mapping.clear()
+        self.settings.persona_session_mapping.clear()
         self.settings.output_folder = None
         self.table.clearContents()
         self.table.setRowCount(0)

@@ -29,6 +29,7 @@ from PySide6.QtWidgets import (
 )
 
 from gdlex_anonimizzatore.core.anonymize import apply_replacements
+from gdlex_anonimizzatore.core.docx_processor import anonymize_docx_file, extract_docx_text_and_findings
 from gdlex_anonimizzatore.core.models import EntityFinding, EntityType, FileJob, FileStatus, Settings
 from gdlex_anonimizzatore.core.recognizers import REPLACEMENT_BY_TYPE, detect_entities
 from gdlex_anonimizzatore.core.report import generate_report
@@ -449,7 +450,7 @@ class MainWindow(QMainWindow):
         if not mime_data or not mime_data.hasUrls():
             return False
         for url in mime_data.urls():
-            if url.isLocalFile() and Path(url.toLocalFile()).suffix.lower() == ".txt":
+            if url.isLocalFile() and Path(url.toLocalFile()).suffix.lower() in {".txt", ".docx"}:
                 return True
         return False
 
@@ -470,7 +471,7 @@ class MainWindow(QMainWindow):
         return [
             Path(url.toLocalFile())
             for url in mime_data.urls()
-            if url.isLocalFile() and Path(url.toLocalFile()).suffix.lower() == ".txt"
+            if url.isLocalFile() and Path(url.toLocalFile()).suffix.lower() in {".txt", ".docx"}
         ]
 
     def log(self, message: str) -> None:
@@ -482,7 +483,7 @@ class MainWindow(QMainWindow):
         self.toggle_log_btn.setText("Mostra" if visible else "Nascondi")
 
     def pick_files(self) -> None:
-        files, _ = QFileDialog.getOpenFileNames(self, "Seleziona file TXT", "", "Text files (*.txt)")
+        files, _ = QFileDialog.getOpenFileNames(self, "Seleziona file", "", "Supportati (*.txt *.docx)")
         added = self.add_files([Path(f) for f in files])
         if files:
             self.log(f"Picker: aggiunti {added} file")
@@ -490,11 +491,13 @@ class MainWindow(QMainWindow):
     def add_files(self, paths: list[Path]) -> int:
         added = 0
         for path in paths:
-            if path.suffix.lower() != ".txt":
+            suffix = path.suffix.lower()
+            if suffix not in {".txt", ".docx"}:
                 continue
             if any(job.input_path == path for job in self.jobs):
                 continue
-            self.jobs.append(FileJob(input_path=path))
+            file_type = "DOCX" if suffix == ".docx" else "TXT"
+            self.jobs.append(FileJob(input_path=path, file_type=file_type))
             added += 1
         if added:
             self.refresh_table()
@@ -573,8 +576,11 @@ class MainWindow(QMainWindow):
         try:
             for i, job in enumerate(targets, start=1):
                 try:
-                    job.original_text = job.input_path.read_text(encoding="utf-8")
-                    job.findings = detect_entities(job.original_text, self.settings)
+                    if job.input_path.suffix.lower() == ".docx":
+                        job.original_text, job.findings = extract_docx_text_and_findings(job.input_path, self.settings)
+                    else:
+                        job.original_text = job.input_path.read_text(encoding="utf-8")
+                        job.findings = detect_entities(job.original_text, self.settings)
                     job.status = FileStatus.ANALYZED
                     self.status_lbl.setText(f"Analizzato: {job.input_path.name}")
                     dlg = ReviewDialog(job, self.settings, self)
@@ -605,13 +611,19 @@ class MainWindow(QMainWindow):
                         job.status = FileStatus.SKIPPED
                         job.error = "File non analizzato"
                         continue
-                    text = job.original_text or job.input_path.read_text(encoding="utf-8")
-                    processed = apply_replacements(text, job.findings)
                     out_dir = self.settings.output_folder or job.input_path.parent
                     out_dir.mkdir(parents=True, exist_ok=True)
                     output_name = f"{job.input_path.stem}_anonimizzato{job.input_path.suffix}"
                     output_path = out_dir / output_name
-                    output_path.write_text(processed, encoding="utf-8")
+                    if job.input_path.suffix.lower() == ".docx":
+                        applied, skipped = anonymize_docx_file(job.input_path, output_path, self.settings, job.findings)
+                        if skipped:
+                            self.log(f"DOCX run-level skip ({job.input_path.name}): {skipped} match cross-run")
+                        self.log(f"DOCX replacement applicate: {applied}")
+                    else:
+                        text = job.original_text or job.input_path.read_text(encoding="utf-8")
+                        processed = apply_replacements(text, job.findings)
+                        output_path.write_text(processed, encoding="utf-8")
                     job.output_path = output_path
                     job.status = FileStatus.PROCESSED
                     self.status_lbl.setText(f"Elaborato: {job.input_path.name}")

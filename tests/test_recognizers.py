@@ -22,12 +22,21 @@ def test_societa_mapping_is_coherent_per_document() -> None:
     findings = [f for f in detect_entities(text, Settings()) if f.entity_type == EntityType.SOCIETA]
 
     assert len(findings) == 3
-    assert findings[0].replacement == "società Alfa"
-    assert findings[1].replacement == "società Alfa"
-    assert findings[2].replacement == "società Beta"
+    assert findings[0].replacement == "Alfa"
+    assert findings[1].replacement == "Alfa"
+    assert findings[2].replacement == "Beta"
 
 
 def test_societa_ignores_institutional_entities() -> None:
     text = "Agenzia delle Entrate S.p.A. e Comune Energia Srl"
     findings = [f for f in detect_entities(text, Settings()) if f.entity_type == EntityType.SOCIETA]
     assert findings == []
+
+
+def test_societa_placeholder_avoids_double_societa() -> None:
+    text = "La società Eni S.p.A. ha deliberato."
+    findings = [f for f in detect_entities(text, Settings()) if f.entity_type == EntityType.SOCIETA]
+    assert findings
+    replaced = text.replace(findings[0].value, findings[0].replacement)
+    assert "società società" not in replaced
+    assert "La società Alfa" in replaced

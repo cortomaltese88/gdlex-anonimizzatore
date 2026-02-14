@@ -67,7 +67,7 @@ REPLACEMENT_BY_TYPE: dict[EntityType, str] = {
     EntityType.EMAIL: "[EMAIL]",
     EntityType.CODICE_FISCALE: "[CF]",
     EntityType.PARTITA_IVA: "[PIVA]",
-    EntityType.SOCIETA: "società Alfa",
+    EntityType.SOCIETA: "Alfa",
     EntityType.MANUALE: "[MASK]",
 }
 
@@ -106,8 +106,8 @@ def _is_institutional_context(text: str, start: int, end: int) -> bool:
 
 def _societa_placeholder(index: int) -> str:
     if index < len(SOCIETA_LABELS):
-        return f"società {SOCIETA_LABELS[index]}"
-    return f"società {index + 1}"
+        return SOCIETA_LABELS[index]
+    return str(index + 1)
 
 
 def _detect_societa(text: str, settings: Settings) -> list[EntityFinding]:

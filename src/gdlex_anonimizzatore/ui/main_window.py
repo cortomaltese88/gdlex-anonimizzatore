@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QUrl
-from PySide6.QtGui import QDesktopServices, QFont, QPalette
+from PySide6.QtGui import QAction, QDesktopServices, QFont, QPalette
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
@@ -70,6 +71,39 @@ QPushButton:hover {
 }
 QPushButton:pressed {
     background-color: #1f1f1f;
+}
+QPushButton[variant="primary"] {
+    background-color: #2d6cdf;
+    border-color: #3e74d4;
+    color: #ffffff;
+}
+QPushButton[variant="primary"]:hover {
+    background-color: #3b79e6;
+}
+QPushButton[variant="primary"]:pressed {
+    background-color: #2557b3;
+}
+QPushButton[variant="secondary"] {
+    background-color: #3a3a3a;
+    border-color: #5b5b5b;
+    color: #f0f0f0;
+}
+QPushButton[variant="secondary"]:hover {
+    background-color: #474747;
+}
+QPushButton[variant="secondary"]:pressed {
+    background-color: #2f2f2f;
+}
+QPushButton[variant="danger"] {
+    background-color: #a83a3a;
+    border-color: #bf4d4d;
+    color: #ffffff;
+}
+QPushButton[variant="danger"]:hover {
+    background-color: #bf4d4d;
+}
+QPushButton[variant="danger"]:pressed {
+    background-color: #8f2e2e;
 }
 QTableWidget {
     gridline-color: #3a3a3a;
@@ -272,6 +306,7 @@ class MainWindow(QMainWindow):
         self.resize(1200, 760)
         self.setAcceptDrops(True)
         self._build_ui()
+        self._build_menu()
 
     def _build_ui(self) -> None:
         central = QWidget()
@@ -287,6 +322,11 @@ class MainWindow(QMainWindow):
         self.btn_open_output = QPushButton("Apri cartella output")
         self.btn_report = QPushButton("Genera report")
         self.btn_ai = QPushButton("AI assist (manuale)")
+
+        self.btn_add.setProperty("variant", "secondary")
+        self.btn_analyze.setProperty("variant", "primary")
+        self.btn_execute.setProperty("variant", "primary")
+        self.btn_reset.setProperty("variant", "danger")
         for btn in [
             self.btn_add,
             self.btn_remove,
@@ -355,6 +395,28 @@ class MainWindow(QMainWindow):
         self.btn_report.clicked.connect(self.create_report)
         self.btn_ai.clicked.connect(self.ai_assist)
         self.update_action_states()
+
+    def _build_menu(self) -> None:
+        menu_file = self.menuBar().addMenu("File")
+        close_action = QAction("Esci", self)
+        close_action.triggered.connect(self.close)
+        menu_file.addAction(close_action)
+
+        menu_help = self.menuBar().addMenu("Aiuto")
+        about_action = QAction("Informazioni...", self)
+        about_action.triggered.connect(self.show_about_dialog)
+        menu_help.addAction(about_action)
+
+    def show_about_dialog(self) -> None:
+        try:
+            app_version = version("gdlex-anonimizzatore")
+        except PackageNotFoundError:
+            app_version = "0.1.0"
+        QMessageBox.information(
+            self,
+            "Informazioni",
+            f"GDLEX Anonimizzatore\nVersione: {app_version}\nSTUDIO GD LEX",
+        )
 
     def update_action_states(self) -> None:
         enabled = file_actions_enabled(len(self.jobs), self.is_busy)

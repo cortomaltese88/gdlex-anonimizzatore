@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+from datetime import datetime
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
@@ -33,6 +35,7 @@ from gdlex_anonimizzatore.core.docx_processor import anonymize_docx_file, extrac
 from gdlex_anonimizzatore.core.models import EntityFinding, EntityType, FileJob, FileStatus, Settings
 from gdlex_anonimizzatore.core.recognizers import REPLACEMENT_BY_TYPE, detect_entities
 from gdlex_anonimizzatore.core.report import generate_report
+from gdlex_anonimizzatore.core.session_store import export_session, import_session
 from gdlex_anonimizzatore.ui.state_helpers import file_actions_enabled, has_resettable_state
 
 
@@ -399,6 +402,16 @@ class MainWindow(QMainWindow):
 
     def _build_menu(self) -> None:
         menu_file = self.menuBar().addMenu("File")
+
+        export_action = QAction("Esporta sessione…", self)
+        export_action.triggered.connect(self.export_session_json)
+        menu_file.addAction(export_action)
+
+        import_action = QAction("Importa sessione…", self)
+        import_action.triggered.connect(self.import_session_json)
+        menu_file.addAction(import_action)
+
+        menu_file.addSeparator()
         close_action = QAction("Esci", self)
         close_action.triggered.connect(self.close)
         menu_file.addAction(close_action)
@@ -407,6 +420,36 @@ class MainWindow(QMainWindow):
         about_action = QAction("Informazioni...", self)
         about_action.triggered.connect(self.show_about_dialog)
         menu_help.addAction(about_action)
+
+    def export_session_json(self) -> None:
+        QMessageBox.warning(
+            self,
+            "Esporta sessione",
+            "Il file contiene dati sensibili (mappature con valori originali).",
+        )
+        default_name = f"gdlex_sessione_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+        file_path, _ = QFileDialog.getSaveFileName(self, "Esporta sessione", default_name, "JSON (*.json)")
+        if not file_path:
+            return
+        try:
+            data = export_session(self)
+            Path(file_path).write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+            self.log(f"Sessione esportata: {file_path}")
+        except Exception as exc:  # noqa: BLE001
+            QMessageBox.critical(self, "Esporta sessione", f"Errore esportazione:\n{exc}")
+
+    def import_session_json(self) -> None:
+        file_path, _ = QFileDialog.getOpenFileName(self, "Importa sessione", "", "JSON (*.json)")
+        if not file_path:
+            return
+        try:
+            raw = Path(file_path).read_text(encoding="utf-8")
+            data = json.loads(raw)
+            import_session(data, self)
+            self.refresh_table()
+            self.log("Sessione importata con successo")
+        except Exception as exc:  # noqa: BLE001
+            QMessageBox.critical(self, "Importa sessione", f"Errore importazione:\n{exc}")
 
     def show_about_dialog(self) -> None:
         try:

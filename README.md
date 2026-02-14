@@ -24,3 +24,8 @@ gdlex-anonimizzatore
 4. `Esegui` per creare file `*_anonimizzato.txt`.
 5. `Genera report` per esportare report `.txt`.
 6. `AI assist (manuale)` per salvare versione `*_anonimizzato_ai.txt`.
+
+
+## Note UX
+
+- Supporto drag&drop file `.txt` sia sulla finestra principale sia direttamente sulla tabella file.

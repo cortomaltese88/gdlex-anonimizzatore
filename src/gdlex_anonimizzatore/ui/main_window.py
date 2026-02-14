@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QUrl
-from PySide6.QtGui import QDesktopServices, QPalette
+from PySide6.QtGui import QDesktopServices, QFont, QPalette
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
@@ -31,6 +31,79 @@ from gdlex_anonimizzatore.core.anonymize import apply_replacements
 from gdlex_anonimizzatore.core.models import EntityFinding, EntityType, FileJob, FileStatus, Settings
 from gdlex_anonimizzatore.core.recognizers import REPLACEMENT_BY_TYPE, detect_entities
 from gdlex_anonimizzatore.core.report import generate_report
+
+
+APP_DARK_QSS = """
+QWidget {
+    background-color: #1e1e1e;
+    color: #e6e6e6;
+}
+QMainWindow {
+    background-color: #1e1e1e;
+}
+QLabel {
+    color: #e6e6e6;
+}
+QGroupBox {
+    border: 1px solid #3a3a3a;
+    border-radius: 6px;
+    margin-top: 8px;
+    padding: 8px;
+    font-weight: 600;
+}
+QGroupBox::title {
+    subcontrol-origin: margin;
+    left: 10px;
+    padding: 0 4px;
+}
+QPushButton {
+    min-height: 30px;
+    padding: 4px 12px;
+    border: 1px solid #4b4b4b;
+    border-radius: 4px;
+    background-color: #2a2a2a;
+    color: #ececec;
+}
+QPushButton:hover {
+    background-color: #353535;
+}
+QPushButton:pressed {
+    background-color: #1f1f1f;
+}
+QTableWidget {
+    gridline-color: #3a3a3a;
+    alternate-background-color: #242424;
+    background-color: #1b1b1b;
+    selection-background-color: #2d6cdf;
+    selection-color: #ffffff;
+    border: 1px solid #3a3a3a;
+}
+QTableWidget::item {
+    padding: 6px;
+}
+QHeaderView::section {
+    background-color: #2b2b2b;
+    color: #f0f0f0;
+    border: 1px solid #3c3c3c;
+    padding: 7px 8px;
+    font-weight: 600;
+}
+QPlainTextEdit, QTextEdit {
+    background-color: #151515;
+    color: #dcdcdc;
+    border: 1px solid #3a3a3a;
+}
+QProgressBar {
+    border: 1px solid #3b3b3b;
+    border-radius: 4px;
+    text-align: center;
+    background: #1a1a1a;
+    color: #e6e6e6;
+}
+QProgressBar::chunk {
+    background-color: #2d6cdf;
+}
+"""
 
 
 class ReviewDialog(QDialog):
@@ -167,16 +240,25 @@ class DropTableWidget(QTableWidget):
         super().__init__(0, 6, parent)
         self.main_window = parent
         self.setAcceptDrops(True)
+        self.viewport().setAcceptDrops(True)
+        self.setDragDropMode(QAbstractItemView.DropOnly)
         self.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
 
     def dragEnterEvent(self, event):  # type: ignore[override]
-        if event.mimeData().hasUrls():
+        if self.main_window.has_valid_drop(event):
             event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def dragMoveEvent(self, event):  # type: ignore[override]
+        if self.main_window.has_valid_drop(event):
+            event.acceptProposedAction()
+        else:
+            event.ignore()
 
     def dropEvent(self, event):  # type: ignore[override]
-        paths = [Path(url.toLocalFile()) for url in event.mimeData().urls()]
-        self.main_window.add_files(paths)
+        self.main_window.handle_drop(event)
 
 
 class MainWindow(QMainWindow):
@@ -186,6 +268,7 @@ class MainWindow(QMainWindow):
         self.jobs: list[FileJob] = []
         self.setWindowTitle("GDLEX Anonimizzatore v0.1")
         self.resize(1200, 760)
+        self.setAcceptDrops(True)
         self._build_ui()
 
     def _build_ui(self) -> None:
@@ -216,8 +299,20 @@ class MainWindow(QMainWindow):
 
         self.table = DropTableWidget(self)
         self.table.setHorizontalHeaderLabels(["File", "Tipo", "Stato", "Entità trovate", "Output", "Apri"])
-        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
-        self.table.horizontalHeader().setSectionResizeMode(4, QHeaderView.Stretch)
+        self.table.setAlternatingRowColors(True)
+        self.table.setMinimumWidth(900)
+        self.table.setColumnWidth(0, 360)
+        self.table.setColumnWidth(4, 280)
+
+        header = self.table.horizontalHeader()
+        header.setStretchLastSection(True)
+        header.setSectionResizeMode(0, QHeaderView.Stretch)
+        header.setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(3, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(4, QHeaderView.Stretch)
+        header.setSectionResizeMode(5, QHeaderView.ResizeToContents)
+
         main_layout.addWidget(self.table)
 
         self.progress = QProgressBar()
@@ -227,6 +322,11 @@ class MainWindow(QMainWindow):
 
         self.log_box = QPlainTextEdit()
         self.log_box.setReadOnly(True)
+        mono_font = QFont("Monospace")
+        mono_font.setStyleHint(QFont.StyleHint.Monospace)
+        mono_font.setPointSizeF(10.5)
+        self.log_box.setFont(mono_font)
+
         log_group = QGroupBox("Log")
         log_layout = QVBoxLayout(log_group)
         toggle_row = QHBoxLayout()
@@ -250,6 +350,50 @@ class MainWindow(QMainWindow):
         self.btn_report.clicked.connect(self.create_report)
         self.btn_ai.clicked.connect(self.ai_assist)
 
+    def dragEnterEvent(self, event):  # type: ignore[override]
+        if self.has_valid_drop(event):
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def dragMoveEvent(self, event):  # type: ignore[override]
+        if self.has_valid_drop(event):
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def dropEvent(self, event):  # type: ignore[override]
+        self.handle_drop(event)
+
+    def has_valid_drop(self, event) -> bool:
+        mime_data = event.mimeData()
+        if not mime_data or not mime_data.hasUrls():
+            return False
+        for url in mime_data.urls():
+            if url.isLocalFile() and Path(url.toLocalFile()).suffix.lower() == ".txt":
+                return True
+        return False
+
+    def handle_drop(self, event) -> None:
+        paths = self._extract_txt_paths_from_event(event)
+        added = self.add_files(paths)
+        if added > 0:
+            self.log(f"Drop: aggiunti {added} file")
+            event.acceptProposedAction()
+        else:
+            self.log("Drop: nessun file valido")
+            event.ignore()
+
+    def _extract_txt_paths_from_event(self, event) -> list[Path]:
+        mime_data = event.mimeData()
+        if not mime_data or not mime_data.hasUrls():
+            return []
+        return [
+            Path(url.toLocalFile())
+            for url in mime_data.urls()
+            if url.isLocalFile() and Path(url.toLocalFile()).suffix.lower() == ".txt"
+        ]
+
     def log(self, message: str) -> None:
         self.log_box.appendPlainText(message)
 
@@ -260,17 +404,22 @@ class MainWindow(QMainWindow):
 
     def pick_files(self) -> None:
         files, _ = QFileDialog.getOpenFileNames(self, "Seleziona file TXT", "", "Text files (*.txt)")
-        self.add_files([Path(f) for f in files])
+        added = self.add_files([Path(f) for f in files])
+        if files:
+            self.log(f"Picker: aggiunti {added} file")
 
-    def add_files(self, paths: list[Path]) -> None:
+    def add_files(self, paths: list[Path]) -> int:
+        added = 0
         for path in paths:
             if path.suffix.lower() != ".txt":
-                self.log(f"Skip non-txt: {path}")
                 continue
             if any(job.input_path == path for job in self.jobs):
                 continue
             self.jobs.append(FileJob(input_path=path))
-        self.refresh_table()
+            added += 1
+        if added:
+            self.refresh_table()
+        return added
 
     def remove_selected(self) -> None:
         rows = sorted({idx.row() for idx in self.table.selectedIndexes()}, reverse=True)
@@ -393,3 +542,8 @@ def apply_dark_theme(app: QApplication) -> None:
     palette.setColor(QPalette.ColorRole.Highlight, Qt.GlobalColor.darkCyan)
     palette.setColor(QPalette.ColorRole.HighlightedText, Qt.GlobalColor.white)
     app.setPalette(palette)
+
+    base_font = app.font()
+    base_font.setPointSizeF(11.0)
+    app.setFont(base_font)
+    app.setStyleSheet(APP_DARK_QSS)

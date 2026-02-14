@@ -2,8 +2,27 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Protocol
+
+import re
+
+
+
+
+
+def get_app_version() -> str:
+    try:
+        return version("gdlex-anonimizzatore")
+    except PackageNotFoundError:
+        try:
+            pyproject = Path(__file__).resolve().parents[3] / "pyproject.toml"
+            content = pyproject.read_text(encoding="utf-8")
+            match = re.search(r'^version\s*=\s*"([^"]+)"', content, flags=re.MULTILINE)
+            return match.group(1) if match else "0.0.0"
+        except Exception:  # noqa: BLE001
+            return "0.0.0"
 
 
 class FileStatus(str, Enum):
@@ -61,7 +80,7 @@ class Settings:
     session_whitelist: set[str] = field(default_factory=set)
     societa_session_mapping: dict[str, str] = field(default_factory=dict)
     persona_session_mapping: dict[str, str] = field(default_factory=dict)
-    version: str = "0.1"
+    version: str = field(default_factory=get_app_version)
 
 
 class DocumentHandler(Protocol):

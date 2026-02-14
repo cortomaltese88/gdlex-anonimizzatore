@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from datetime import datetime
 from importlib.metadata import PackageNotFoundError, version
+import re
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QUrl
@@ -37,6 +38,19 @@ from gdlex_anonimizzatore.core.recognizers import REPLACEMENT_BY_TYPE, detect_en
 from gdlex_anonimizzatore.core.report import generate_report
 from gdlex_anonimizzatore.core.session_store import export_session, import_session
 from gdlex_anonimizzatore.ui.state_helpers import file_actions_enabled, has_resettable_state
+
+
+def _resolve_app_version() -> str:
+    try:
+        return version("gdlex-anonimizzatore")
+    except PackageNotFoundError:
+        try:
+            pyproject = Path(__file__).resolve().parents[3] / "pyproject.toml"
+            content = pyproject.read_text(encoding="utf-8")
+            match = re.search(r'^version\s*=\s*"([^"]+)"', content, flags=re.MULTILINE)
+            return match.group(1) if match else "0.0.0"
+        except Exception:  # noqa: BLE001
+            return "0.0.0"
 
 
 APP_DARK_QSS = """
@@ -306,7 +320,7 @@ class MainWindow(QMainWindow):
         self.settings = Settings()
         self.jobs: list[FileJob] = []
         self.is_busy = False
-        self.setWindowTitle("GDLEX Anonimizzatore v0.1")
+        self.setWindowTitle(f"GDLEX Anonimizzatore v{_resolve_app_version()}")
         self.resize(1200, 760)
         self.setAcceptDrops(True)
         self._build_ui()
@@ -452,10 +466,7 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, "Importa sessione", f"Errore importazione:\n{exc}")
 
     def show_about_dialog(self) -> None:
-        try:
-            app_version = version("gdlex-anonimizzatore")
-        except PackageNotFoundError:
-            app_version = "0.1.0"
+        app_version = _resolve_app_version()
         QMessageBox.information(
             self,
             "Informazioni",

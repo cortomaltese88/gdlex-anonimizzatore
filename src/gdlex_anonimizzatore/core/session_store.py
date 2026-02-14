@@ -1,18 +1,9 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from importlib.metadata import PackageNotFoundError, version
-from types import SimpleNamespace
 from typing import Any
 
-from gdlex_anonimizzatore.core.models import EntityFinding, EntityType
-
-
-def _app_version() -> str:
-    try:
-        return version("gdlex-anonimizzatore")
-    except PackageNotFoundError:
-        return "0.1.0"
+from gdlex_anonimizzatore.core.models import EntityType, get_app_version
 
 
 def _state_settings(state: Any) -> Any:
@@ -68,7 +59,7 @@ def export_session(state: Any) -> dict[str, Any]:
     settings = _state_settings(state)
     whitelist = sorted(str(x) for x in getattr(settings, "session_whitelist", set()))
     return {
-        "app_version": _app_version(),
+        "app_version": get_app_version(),
         "created_at": datetime.now(timezone.utc).isoformat(),
         "mapping": _normalize_mapping_entries(state),
         "whitelist_session": whitelist,

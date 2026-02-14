@@ -14,8 +14,14 @@ def generate_report(jobs: list[FileJob], settings: Settings, destination: Path) 
         f"Timestamp: {datetime.now().isoformat()}",
         f"Output folder: {destination}",
         f"Whitelist sessione: {sorted(settings.session_whitelist)}",
-        "",
+        "Mapping SOCIETA sessione:",
     ]
+    if settings.societa_session_mapping:
+        for company_key, placeholder in settings.societa_session_mapping.items():
+            lines.append(f"- {company_key} -> {placeholder}")
+    else:
+        lines.append("- Nessun mapping SOCIETA")
+    lines.append("")
     for job in jobs:
         lines.extend(
             [

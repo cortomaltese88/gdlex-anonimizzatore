@@ -58,6 +58,7 @@ class Settings:
         ]
     )
     session_whitelist: set[str] = field(default_factory=set)
+    societa_session_mapping: dict[str, str] = field(default_factory=dict)
     version: str = "0.1"
 
 

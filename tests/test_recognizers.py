@@ -40,3 +40,14 @@ def test_societa_placeholder_avoids_double_societa() -> None:
     replaced = text.replace(findings[0].value, findings[0].replacement)
     assert "società società" not in replaced
     assert "La società Alfa" in replaced
+
+
+def test_societa_mapping_persists_across_files_in_session() -> None:
+    settings = Settings()
+    f1 = [f for f in detect_entities("Eni S.p.A.", settings) if f.entity_type == EntityType.SOCIETA]
+    f2 = [f for f in detect_entities("Acme Srl", settings) if f.entity_type == EntityType.SOCIETA]
+    f3 = [f for f in detect_entities("ENI S.P.A.", settings) if f.entity_type == EntityType.SOCIETA]
+
+    assert f1[0].replacement == "Alfa"
+    assert f2[0].replacement == "Beta"
+    assert f3[0].replacement == "Alfa"

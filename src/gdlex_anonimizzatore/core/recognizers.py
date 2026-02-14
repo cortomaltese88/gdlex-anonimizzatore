@@ -112,7 +112,7 @@ def _societa_placeholder(index: int) -> str:
 
 def _detect_societa(text: str, settings: Settings) -> list[EntityFinding]:
     findings: list[EntityFinding] = []
-    mapping: dict[str, str] = {}
+    mapping = settings.societa_session_mapping
     for match in SOCIETA_RE.finditer(text):
         value = match.group(0).strip()
         if (

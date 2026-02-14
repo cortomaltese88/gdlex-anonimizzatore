@@ -532,6 +532,7 @@ class MainWindow(QMainWindow):
 
         self.jobs.clear()
         self.settings.session_whitelist.clear()
+        self.settings.societa_session_mapping.clear()
         self.settings.output_folder = None
         self.table.clearContents()
         self.table.setRowCount(0)
@@ -554,15 +555,22 @@ class MainWindow(QMainWindow):
             open_btn.clicked.connect(lambda _, p=job.output_path: self.open_file(p))
             self.table.setCellWidget(idx, 5, open_btn)
 
+    def _target_jobs(self) -> list[FileJob]:
+        selected_rows = sorted({idx.row() for idx in self.table.selectedIndexes()})
+        if not selected_rows:
+            return self.jobs
+        return [self.jobs[row] for row in selected_rows if 0 <= row < len(self.jobs)]
+
     def analyze_jobs(self) -> None:
-        total = len(self.jobs)
+        targets = self._target_jobs()
+        total = len(targets)
         if not total:
             return
         self.is_busy = True
         self.update_action_states()
         self.progress.setRange(0, total)
         try:
-            for i, job in enumerate(self.jobs, start=1):
+            for i, job in enumerate(targets, start=1):
                 try:
                     job.original_text = job.input_path.read_text(encoding="utf-8")
                     job.findings = detect_entities(job.original_text, self.settings)
@@ -582,14 +590,15 @@ class MainWindow(QMainWindow):
             self.update_action_states()
 
     def execute_jobs(self) -> None:
-        total = len(self.jobs)
+        targets = self._target_jobs()
+        total = len(targets)
         if not total:
             return
         self.is_busy = True
         self.update_action_states()
         self.progress.setRange(0, total)
         try:
-            for i, job in enumerate(self.jobs, start=1):
+            for i, job in enumerate(targets, start=1):
                 try:
                     if job.status not in {FileStatus.ANALYZED, FileStatus.PROCESSED}:
                         job.status = FileStatus.SKIPPED

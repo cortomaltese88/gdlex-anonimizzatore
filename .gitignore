@@ -23,3 +23,8 @@ build/
 # OS
 .DS_Store
 Thumbs.db
+.pytest_cache/
+**/__pycache__/
+.coverage
+htmlcov/
+.ruff_cache/

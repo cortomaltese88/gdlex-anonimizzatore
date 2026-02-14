@@ -15,3 +15,19 @@ def test_session_whitelist_skips_value() -> None:
     settings = Settings(session_whitelist={"foo@example.com"})
     findings = detect_entities("foo@example.com", settings)
     assert findings == []
+
+
+def test_societa_mapping_is_coherent_per_document() -> None:
+    text = "Eni S.p.A. e ENI S.P.A. hanno un accordo con Acme Srl."
+    findings = [f for f in detect_entities(text, Settings()) if f.entity_type == EntityType.SOCIETA]
+
+    assert len(findings) == 3
+    assert findings[0].replacement == "società Alfa"
+    assert findings[1].replacement == "società Alfa"
+    assert findings[2].replacement == "società Beta"
+
+
+def test_societa_ignores_institutional_entities() -> None:
+    text = "Agenzia delle Entrate S.p.A. e Comune Energia Srl"
+    findings = [f for f in detect_entities(text, Settings()) if f.entity_type == EntityType.SOCIETA]
+    assert findings == []

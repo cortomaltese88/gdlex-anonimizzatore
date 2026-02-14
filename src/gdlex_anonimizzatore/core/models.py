@@ -18,6 +18,7 @@ class EntityType(str, Enum):
     EMAIL = "EMAIL"
     CODICE_FISCALE = "CODICE_FISCALE"
     PARTITA_IVA = "PARTITA_IVA"
+    SOCIETA = "SOCIETA"
     MANUALE = "MANUALE"
 
 

@@ -31,6 +31,7 @@ from gdlex_anonimizzatore.core.anonymize import apply_replacements
 from gdlex_anonimizzatore.core.models import EntityFinding, EntityType, FileJob, FileStatus, Settings
 from gdlex_anonimizzatore.core.recognizers import REPLACEMENT_BY_TYPE, detect_entities
 from gdlex_anonimizzatore.core.report import generate_report
+from gdlex_anonimizzatore.ui.state_helpers import file_actions_enabled, has_resettable_state
 
 
 APP_DARK_QSS = """
@@ -266,6 +267,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.settings = Settings()
         self.jobs: list[FileJob] = []
+        self.is_busy = False
         self.setWindowTitle("GDLEX Anonimizzatore v0.1")
         self.resize(1200, 760)
         self.setAcceptDrops(True)
@@ -280,6 +282,7 @@ class MainWindow(QMainWindow):
         self.btn_remove = QPushButton("Rimuovi selezionati")
         self.btn_analyze = QPushButton("Analizza")
         self.btn_execute = QPushButton("Esegui")
+        self.btn_reset = QPushButton("Pulisci")
         self.btn_output = QPushButton("Scegli output folder")
         self.btn_open_output = QPushButton("Apri cartella output")
         self.btn_report = QPushButton("Genera report")
@@ -289,6 +292,7 @@ class MainWindow(QMainWindow):
             self.btn_remove,
             self.btn_analyze,
             self.btn_execute,
+            self.btn_reset,
             self.btn_output,
             self.btn_open_output,
             self.btn_report,
@@ -345,10 +349,23 @@ class MainWindow(QMainWindow):
         self.btn_remove.clicked.connect(self.remove_selected)
         self.btn_analyze.clicked.connect(self.analyze_jobs)
         self.btn_execute.clicked.connect(self.execute_jobs)
+        self.btn_reset.clicked.connect(self.reset_session)
         self.btn_output.clicked.connect(self.choose_output)
         self.btn_open_output.clicked.connect(self.open_output_folder)
         self.btn_report.clicked.connect(self.create_report)
         self.btn_ai.clicked.connect(self.ai_assist)
+        self.update_action_states()
+
+    def update_action_states(self) -> None:
+        enabled = file_actions_enabled(len(self.jobs), self.is_busy)
+        self.btn_remove.setEnabled(enabled)
+        self.btn_analyze.setEnabled(enabled)
+        self.btn_execute.setEnabled(enabled)
+        self.btn_output.setEnabled(enabled)
+        self.btn_open_output.setEnabled(enabled)
+        self.btn_report.setEnabled(enabled)
+        self.btn_ai.setEnabled(enabled)
+        self.btn_reset.setEnabled(not self.is_busy)
 
     def dragEnterEvent(self, event):  # type: ignore[override]
         if self.has_valid_drop(event):
@@ -419,6 +436,7 @@ class MainWindow(QMainWindow):
             added += 1
         if added:
             self.refresh_table()
+            self.update_action_states()
         return added
 
     def remove_selected(self) -> None:
@@ -426,6 +444,40 @@ class MainWindow(QMainWindow):
         for row in rows:
             self.jobs.pop(row)
         self.refresh_table()
+        self.update_action_states()
+
+    def reset_session(self) -> None:
+        if self.is_busy:
+            QMessageBox.warning(self, "Reset", "Operazione in corso")
+            return
+
+        should_confirm = has_resettable_state(
+            len(self.jobs),
+            bool(self.log_box.toPlainText().strip()),
+            self.progress.value(),
+            self.status_lbl.text(),
+        )
+        if should_confirm:
+            answer = QMessageBox.question(
+                self,
+                "Conferma reset",
+                "Vuoi davvero pulire lo stato della sessione corrente?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if answer != QMessageBox.StandardButton.Yes:
+                return
+
+        self.jobs.clear()
+        self.settings.session_whitelist.clear()
+        self.settings.output_folder = None
+        self.table.clearContents()
+        self.table.setRowCount(0)
+        self.progress.setValue(0)
+        self.status_lbl.setText("Pronto")
+        self.log_box.clear()
+        self.log("Stato resettato.")
+        self.update_action_states()
 
     def refresh_table(self) -> None:
         self.table.setRowCount(0)
@@ -444,50 +496,62 @@ class MainWindow(QMainWindow):
         total = len(self.jobs)
         if not total:
             return
+        self.is_busy = True
+        self.update_action_states()
         self.progress.setRange(0, total)
-        for i, job in enumerate(self.jobs, start=1):
-            try:
-                job.original_text = job.input_path.read_text(encoding="utf-8")
-                job.findings = detect_entities(job.original_text, self.settings)
-                job.status = FileStatus.ANALYZED
-                self.status_lbl.setText(f"Analizzato: {job.input_path.name}")
-                dlg = ReviewDialog(job, self.settings, self)
-                if dlg.exec():
-                    job.findings = dlg.get_findings()
-            except Exception as exc:  # noqa: BLE001
-                job.status = FileStatus.ERROR
-                job.error = str(exc)
-                self.log(f"Errore analisi {job.input_path}: {exc}")
-            self.progress.setValue(i)
-        self.refresh_table()
+        try:
+            for i, job in enumerate(self.jobs, start=1):
+                try:
+                    job.original_text = job.input_path.read_text(encoding="utf-8")
+                    job.findings = detect_entities(job.original_text, self.settings)
+                    job.status = FileStatus.ANALYZED
+                    self.status_lbl.setText(f"Analizzato: {job.input_path.name}")
+                    dlg = ReviewDialog(job, self.settings, self)
+                    if dlg.exec():
+                        job.findings = dlg.get_findings()
+                except Exception as exc:  # noqa: BLE001
+                    job.status = FileStatus.ERROR
+                    job.error = str(exc)
+                    self.log(f"Errore analisi {job.input_path}: {exc}")
+                self.progress.setValue(i)
+        finally:
+            self.is_busy = False
+            self.refresh_table()
+            self.update_action_states()
 
     def execute_jobs(self) -> None:
         total = len(self.jobs)
         if not total:
             return
+        self.is_busy = True
+        self.update_action_states()
         self.progress.setRange(0, total)
-        for i, job in enumerate(self.jobs, start=1):
-            try:
-                if job.status not in {FileStatus.ANALYZED, FileStatus.PROCESSED}:
-                    job.status = FileStatus.SKIPPED
-                    job.error = "File non analizzato"
-                    continue
-                text = job.original_text or job.input_path.read_text(encoding="utf-8")
-                processed = apply_replacements(text, job.findings)
-                out_dir = self.settings.output_folder or job.input_path.parent
-                out_dir.mkdir(parents=True, exist_ok=True)
-                output_name = f"{job.input_path.stem}_anonimizzato{job.input_path.suffix}"
-                output_path = out_dir / output_name
-                output_path.write_text(processed, encoding="utf-8")
-                job.output_path = output_path
-                job.status = FileStatus.PROCESSED
-                self.status_lbl.setText(f"Elaborato: {job.input_path.name}")
-            except Exception as exc:  # noqa: BLE001
-                job.status = FileStatus.ERROR
-                job.error = str(exc)
-                self.log(f"Errore esecuzione {job.input_path}: {exc}")
-            self.progress.setValue(i)
-        self.refresh_table()
+        try:
+            for i, job in enumerate(self.jobs, start=1):
+                try:
+                    if job.status not in {FileStatus.ANALYZED, FileStatus.PROCESSED}:
+                        job.status = FileStatus.SKIPPED
+                        job.error = "File non analizzato"
+                        continue
+                    text = job.original_text or job.input_path.read_text(encoding="utf-8")
+                    processed = apply_replacements(text, job.findings)
+                    out_dir = self.settings.output_folder or job.input_path.parent
+                    out_dir.mkdir(parents=True, exist_ok=True)
+                    output_name = f"{job.input_path.stem}_anonimizzato{job.input_path.suffix}"
+                    output_path = out_dir / output_name
+                    output_path.write_text(processed, encoding="utf-8")
+                    job.output_path = output_path
+                    job.status = FileStatus.PROCESSED
+                    self.status_lbl.setText(f"Elaborato: {job.input_path.name}")
+                except Exception as exc:  # noqa: BLE001
+                    job.status = FileStatus.ERROR
+                    job.error = str(exc)
+                    self.log(f"Errore esecuzione {job.input_path}: {exc}")
+                self.progress.setValue(i)
+        finally:
+            self.is_busy = False
+            self.refresh_table()
+            self.update_action_states()
 
     def choose_output(self) -> None:
         folder = QFileDialog.getExistingDirectory(self, "Seleziona cartella output")

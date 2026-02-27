@@ -36,6 +36,7 @@ from gdlex_anonimizzatore.core.docx_processor import anonymize_docx_file, extrac
 from gdlex_anonimizzatore.core.models import EntityFinding, EntityType, FileJob, FileStatus, Settings
 from gdlex_anonimizzatore.core.recognizers import REPLACEMENT_BY_TYPE, detect_entities
 from gdlex_anonimizzatore.core.report import generate_report
+from gdlex_anonimizzatore.core.reporting import ProcessingResult, build_result
 from gdlex_anonimizzatore.core.session_store import export_session, import_session
 from gdlex_anonimizzatore.ui.state_helpers import file_actions_enabled, has_resettable_state
 
@@ -290,7 +291,7 @@ class AIAssistDialog(QDialog):
 
 class DropTableWidget(QTableWidget):
     def __init__(self, parent: "MainWindow") -> None:
-        super().__init__(0, 6, parent)
+        super().__init__(0, 7, parent)
         self.main_window = parent
         self.setAcceptDrops(True)
         self.viewport().setAcceptDrops(True)
@@ -319,6 +320,8 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.settings = Settings()
         self.jobs: list[FileJob] = []
+        self._results: list[ProcessingResult] = []
+        self._esiti: dict[int, str] = {}
         self.is_busy = False
         self.setWindowTitle(f"GDLEX Anonimizzatore v{_resolve_app_version()}")
         self.resize(1200, 760)
@@ -360,7 +363,7 @@ class MainWindow(QMainWindow):
         main_layout.addLayout(btn_layout)
 
         self.table = DropTableWidget(self)
-        self.table.setHorizontalHeaderLabels(["File", "Tipo", "Stato", "Entità trovate", "Output", "Apri"])
+        self.table.setHorizontalHeaderLabels(["File", "Tipo", "Stato", "Entità trovate", "Output", "Esito", "Apri"])
         self.table.setAlternatingRowColors(True)
         self.table.setMinimumWidth(900)
         self.table.setColumnWidth(0, 360)
@@ -374,6 +377,7 @@ class MainWindow(QMainWindow):
         header.setSectionResizeMode(3, QHeaderView.ResizeToContents)
         header.setSectionResizeMode(4, QHeaderView.Stretch)
         header.setSectionResizeMode(5, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(6, QHeaderView.ResizeToContents)
 
         main_layout.addWidget(self.table)
 
@@ -588,6 +592,8 @@ class MainWindow(QMainWindow):
                 return
 
         self.jobs.clear()
+        self._results.clear()
+        self._esiti.clear()
         self.settings.session_whitelist.clear()
         self.settings.societa_session_mapping.clear()
         self.settings.persona_session_mapping.clear()
@@ -609,9 +615,10 @@ class MainWindow(QMainWindow):
             self.table.setItem(idx, 2, QTableWidgetItem(job.status.value))
             self.table.setItem(idx, 3, QTableWidgetItem(str(len(job.findings))))
             self.table.setItem(idx, 4, QTableWidgetItem(str(job.output_path) if job.output_path else ""))
+            self.table.setItem(idx, 5, QTableWidgetItem(self._esiti.get(idx, "")))
             open_btn = QPushButton("Apri")
             open_btn.clicked.connect(lambda _, p=job.output_path: self.open_file(p))
-            self.table.setCellWidget(idx, 5, open_btn)
+            self.table.setCellWidget(idx, 6, open_btn)
 
     def _target_jobs(self) -> list[FileJob]:
         selected_rows = sorted({idx.row() for idx in self.table.selectedIndexes()})
@@ -669,10 +676,11 @@ class MainWindow(QMainWindow):
                     out_dir.mkdir(parents=True, exist_ok=True)
                     output_name = f"{job.input_path.stem}_anonimizzato{job.input_path.suffix}"
                     output_path = out_dir / output_name
+                    _docx_skipped = 0
                     if job.input_path.suffix.lower() == ".docx":
-                        applied, skipped = anonymize_docx_file(job.input_path, output_path, self.settings, job.findings)
-                        if skipped:
-                            self.log(f"DOCX run-level skip ({job.input_path.name}): {skipped} match cross-run")
+                        applied, _docx_skipped = anonymize_docx_file(job.input_path, output_path, self.settings, job.findings)
+                        if _docx_skipped:
+                            self.log(f"DOCX run-level skip ({job.input_path.name}): {_docx_skipped} match cross-run")
                         self.log(f"DOCX replacement applicate: {applied}")
                     else:
                         text = job.original_text or job.input_path.read_text(encoding="utf-8")
@@ -681,6 +689,10 @@ class MainWindow(QMainWindow):
                     job.output_path = output_path
                     job.status = FileStatus.PROCESSED
                     self.status_lbl.setText(f"Elaborato: {job.input_path.name}")
+                    result = build_result(job, docx_skipped=_docx_skipped)
+                    job_idx = self.jobs.index(job)
+                    self._results.append(result)
+                    self._esiti[job_idx] = result.status
                 except Exception as exc:  # noqa: BLE001
                     job.status = FileStatus.ERROR
                     job.error = str(exc)
@@ -714,7 +726,7 @@ class MainWindow(QMainWindow):
         if not self.jobs:
             return
         destination = self.settings.output_folder or self.jobs[0].input_path.parent
-        path = generate_report(self.jobs, self.settings, destination)
+        path = generate_report(self.jobs, self.settings, destination, results=self._results or None)
         self.log(f"Report generato: {path}")
         QMessageBox.information(self, "Report", f"Report generato:\n{path}")
 

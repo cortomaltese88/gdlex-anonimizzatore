@@ -1,6 +1,6 @@
-# GDLEX Anonimizzatore
+# GD LEX Anonimizzatore
 
-MVP desktop (PySide6) per anonimizzazione di file `.txt`.
+Strumento desktop PySide6 per anonimizzazione locale/offline di documenti testuali.
 
 Software sviluppato da\
 **Marco Gianese -- STUDIO GD LEX**\
@@ -8,9 +8,18 @@ Padova -- Italia
 
 ------------------------------------------------------------------------
 
+## Funzioni principali
+
+- Anonimizzazione locale di file `.txt` e `.docx`
+- Revisione manuale del mapping prima della sostituzione
+- Generazione di report tecnico `.txt`
+- Persistenza sessione tramite export/import JSON
+
+------------------------------------------------------------------------
+
 ## Installazione
 
-``` bash
+```bash
 python -m venv .venv
 source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -e .
@@ -20,57 +29,32 @@ pip install -e .
 
 ## Avvio
 
-``` bash
+```bash
 gdlex-anonimizzatore
 ```
 
 ------------------------------------------------------------------------
 
-## Flusso operativo
+## Note d'uso
 
-1.  Aggiungi file `.txt` (drag & drop o selettore file).
-2.  Analizza per individuare:
-    -   EMAIL\
-    -   CODICE_FISCALE\
-    -   PARTITA_IVA
-3.  Verifica e modifica il mapping nel dialog di revisione.
-4.  Esegui l'anonimizzazione → crea file `_anonimizzato.txt`.
-5.  Genera report `.txt`.
-6.  (Opzionale) AI assist manuale → salva `_anonimizzato_ai.txt`.
+Il software è distribuito "as is", senza garanzie di alcun tipo. L'utente resta responsabile della verifica dei documenti prodotti e dell'adeguatezza del risultato rispetto al proprio caso d'uso.
 
-------------------------------------------------------------------------
+Questo software non costituisce consulenza legale.
 
-## Caratteristiche attuali
-
--   Interfaccia desktop PySide6
--   Drag & drop diretto
--   Revisione manuale mapping
--   Generazione report tecnico
--   Persistenza sessione (export/import JSON)
--   Controlli di coerenza versione/tag
-
-------------------------------------------------------------------------
-
-## Stato del progetto
-
-Progetto artigianale in evoluzione.\
-Strumento pensato per uso professionale interno e condivisione tra
-colleghi.
+I report generati e i file di sessione JSON possono contenere dati sensibili o riferimenti ai valori originali; vanno quindi gestiti, archiviati e condivisi con cautela.
 
 ------------------------------------------------------------------------
 
 ## Licenza
 
-© 2026 Marco Gianese -- STUDIO GD LEX
+Il codice del progetto è distribuito con licenza **GPL-3.0-or-later**. Per il testo completo vedi [LICENSE](LICENSE).
 
-Rilasciato sotto **GDLEX Non-Commercial License**.
+La licenza GPL si applica al codice, ma non concede diritti d'uso sul nome, marchio, logo o identità visiva **GD LEX** / **STUDIO GD LEX**. Eventuali fork o versioni modificate non possono essere presentati come ufficiali, approvati o affiliati allo Studio salvo autorizzazione separata.
 
-È consentito l'uso personale e professionale non commerciale.\
-È vietato:
+Il progetto non è affiliato, sponsorizzato o approvato da eventuali terze parti citate nelle dipendenze o nella documentazione.
 
--   l'uso commerciale
--   la rivendita
--   la redistribuzione a fini di lucro
--   l'inclusione in software proprietario o commerciale
+------------------------------------------------------------------------
 
-For full terms see the `LICENSE` file.
+## Licenze terze parti
+
+Per un riepilogo sintetico delle principali dipendenze e delle relative licenze vedi [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md).

@@ -474,7 +474,14 @@ class MainWindow(QMainWindow):
         QMessageBox.information(
             self,
             "Informazioni",
-            f"GDLEX Anonimizzatore\nVersione: {app_version}\nSTUDIO GD LEX",
+            (
+                f"GD LEX Anonimizzatore\n"
+                f"Versione: {app_version}\n"
+                "STUDIO GD LEX\n"
+                "Licenza: GPL-3.0-or-later\n"
+                "Software fornito senza garanzie.\n"
+                "Nome, marchio e logo GD LEX non sono concessi come diritti di trademark dalla GPL."
+            ),
         )
 
     def update_action_states(self) -> None:
